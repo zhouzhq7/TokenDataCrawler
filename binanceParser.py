@@ -3,7 +3,7 @@ import re
 import os
 import csv
 from datetime import datetime
-import matplotlib.pyplot as plt
+import itertools
 import ast
 
 base_url = "https://api.binance.com"
@@ -140,8 +140,11 @@ def interval_to_millisecond(interval):
     if interval.endwith('d'):
         return micro_second * int(interval[:-1]) * 60 * 60 * 24
 
-    if interval.endwith('m'):
+    if interval.endwith('M'):
         return micro_second * int(interval[:-1]) * 60 * 60 * 24 * 30
+
+    if interval.endwith('w'):
+        return micro_second * int(interval[:-1]) * 60 * 60 * 24 * 7
 
     raise Exception('Exception in interval to millisecond, params {}'.format(interval))
     # if interval == KLINE_INTERVAL_1MINUTE:
@@ -186,6 +189,6 @@ if __name__=="__main__":
                 KLINE_INTERVAL_1WEEK,
                 KLINE_INTERVAL_1MONTH,
                 ]
-    for s in symbol:
-        main(symbol=s)
+    for s,i in itertools.product(symbol, interval):
+        main(s, i)
 
