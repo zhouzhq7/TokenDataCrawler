@@ -5,6 +5,9 @@ import csv
 from datetime import datetime
 import itertools
 import ast
+import logging.config
+
+
 
 base_url = "https://api.binance.com"
 klines_query_api = "/api/v1/klines"
@@ -131,19 +134,19 @@ def csv_file_write_headers(symbol, interval):
 
 def interval_to_millisecond(interval):
     micro_second = 1000
-    if interval.endwith('m'):
+    if interval.endswith('m'):
         return micro_second * int(interval[:-1]) * 60
 
-    if interval.endwith('h'):
+    if interval.endswith('h'):
         return micro_second * int(interval[:-1]) * 60 * 60
 
-    if interval.endwith('d'):
+    if interval.endswith('d'):
         return micro_second * int(interval[:-1]) * 60 * 60 * 24
 
-    if interval.endwith('M'):
+    if interval.endswith('M'):
         return micro_second * int(interval[:-1]) * 60 * 60 * 24 * 30
 
-    if interval.endwith('w'):
+    if interval.endswith('w'):
         return micro_second * int(interval[:-1]) * 60 * 60 * 24 * 7
 
     raise Exception('Exception in interval to millisecond, params {}'.format(interval))
@@ -158,20 +161,22 @@ def interval_to_millisecond(interval):
 
 
 def main(symbol = 'BTCUSDT', interval = '1m'):
+
     startTime = 1495000000000
     csv_file_write_headers(symbol, interval)
     while True:
-        print ("Collecting data on date : " + str(datetime.fromtimestamp(startTime/1000)))
+        logger.info("Collecting {} with interval {} on date: {}".format(symbol, interval, str(datetime.fromtimestamp(startTime/1000))))
         data = get_klines(symbol, interval, startTime)
         startTime = int(data[-1][0]) + interval_to_millisecond(interval)
         save_data_to_csv(symbol, interval, data)
         if len(data) < 1000:
-            print ("The last data collected is on date : " + str(datetime.fromtimestamp(int(data[-1][0])/1000)))
-            break
+            logger.info("Collecting LAST {} with interval {} on date: {}".format(symbol, interval, str(datetime.fromtimestamp(startTime/1000))))
 
-    return None
 
 if __name__=="__main__":
+    logging.config.fileConfig('logging.ini')
+    logger = logging.getLogger(__name__)
+
     symbol = get_symbols()
     interval = [KLINE_INTERVAL_1MINUTE,
                 KLINE_INTERVAL_3MINUTE,
@@ -189,6 +194,6 @@ if __name__=="__main__":
                 KLINE_INTERVAL_1WEEK,
                 KLINE_INTERVAL_1MONTH,
                 ]
-    for s,i in itertools.product(symbol, interval):
+    for s, i in itertools.product(symbol, interval):
         main(s, i)
 
