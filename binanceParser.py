@@ -4,6 +4,7 @@ import os
 import csv
 from datetime import datetime
 import matplotlib.pyplot as plt
+import ast
 
 base_url = "https://api.binance.com"
 klines_query_api = "/api/v1/klines"
@@ -26,6 +27,7 @@ KLINE_INTERVAL_3DAY = '3d'
 KLINE_INTERVAL_1WEEK = '1w'
 KLINE_INTERVAL_1MONTH = '1M'
 
+
 def get_prices():
     response = requests.get(base_url + price_query_api)
 
@@ -36,6 +38,13 @@ def get_prices():
 
     else:
         raise Exception("Data collection failed. Failed code : " + str(response.status_code))
+
+
+def get_symbols():
+    resp = get_prices()
+    price_list = ast.literal_eval(resp)
+    return [entry['symbol'] for entry in price_list]
+
 
 def process_kline_data(contents):
     contents = contents.decode('utf-8')
@@ -70,6 +79,7 @@ def process_kline_data(contents):
 ]
 """
 
+
 def get_klines(symbol, interval, startTime=None, endTime=None):
     params = {}
     params['symbol'] = symbol
@@ -88,6 +98,7 @@ def get_klines(symbol, interval, startTime=None, endTime=None):
     else:
         raise Exception("Data collection failed. Failed code : " + str(response.status_code))
 
+
 def save_data_to_csv(symbol, interval, data):
     save_dir = os.path.join(default_save_dir, symbol)
     if not os.path.exists(save_dir):
@@ -99,6 +110,7 @@ def save_data_to_csv(symbol, interval, data):
     with open(csv_file_path, 'a') as f:
         writer = csv.writer(f)
         writer.writerows(data)
+
 
 def csv_file_write_headers(symbol, interval):
     save_dir = os.path.join(default_save_dir, symbol)
@@ -118,34 +130,62 @@ def csv_file_write_headers(symbol, interval):
         writer.writerows(header)
 
 def interval_to_millisecond(interval):
-    if interval == KLINE_INTERVAL_1MINUTE:
-        return 60000
-    elif interval == KLINE_INTERVAL_15MINUTE:
-        return 15*60*1000
-    elif interval == KLINE_INTERVAL_2HOUR:
-        return 2*60*60*1000
-    else:
-        raise Exception(interval + " is not supported in current version")
+    micro_second = 1000
+    if interval.endwith('m'):
+        return micro_second * int(interval[:-1]) * 60
 
-def main():
+    if interval.endwith('h'):
+        return micro_second * int(interval[:-1]) * 60 * 60
 
-    symbol = "BTCUSDT"
-    interval = "1m"
+    if interval.endwith('d'):
+        return micro_second * int(interval[:-1]) * 60 * 60 * 24
 
+    if interval.endwith('m'):
+        return micro_second * int(interval[:-1]) * 60 * 60 * 24 * 30
+
+    raise Exception('Exception in interval to millisecond, params {}'.format(interval))
+    # if interval == KLINE_INTERVAL_1MINUTE:
+    #     return 60000
+    # elif interval == KLINE_INTERVAL_15MINUTE:
+    #     return 15*60*1000
+    # elif interval == KLINE_INTERVAL_2HOUR:
+    #     return 2*60*60*1000
+    # else:
+    #     raise Exception(interval + " is not supported in current version")
+
+
+def main(symbol = 'BTCUSDT', interval = '1m'):
     startTime = 1495000000000
     csv_file_write_headers(symbol, interval)
     while True:
         print ("Collecting data on date : " + str(datetime.fromtimestamp(startTime/1000)))
         data = get_klines(symbol, interval, startTime)
         startTime = int(data[-1][0]) + interval_to_millisecond(interval)
-        save_data_to_csv(symbol,interval, data)
+        save_data_to_csv(symbol, interval, data)
         if len(data) < 1000:
             print ("The last data collected is on date : " + str(datetime.fromtimestamp(int(data[-1][0])/1000)))
             break
 
-
-
     return None
 
 if __name__=="__main__":
-    main()
+    symbol = get_symbols()
+    interval = [KLINE_INTERVAL_1MINUTE,
+                KLINE_INTERVAL_3MINUTE,
+                KLINE_INTERVAL_5MINUTE,
+                KLINE_INTERVAL_15MINUTE,
+                KLINE_INTERVAL_30MINUTE,
+                KLINE_INTERVAL_1HOUR,
+                KLINE_INTERVAL_2HOUR,
+                KLINE_INTERVAL_4HOUR,
+                KLINE_INTERVAL_6HOUR,
+                KLINE_INTERVAL_8HOUR,
+                KLINE_INTERVAL_12HOUR,
+                KLINE_INTERVAL_1DAY,
+                KLINE_INTERVAL_3DAY,
+                KLINE_INTERVAL_1WEEK,
+                KLINE_INTERVAL_1MONTH,
+                ]
+    for s in symbol:
+        main(symbol=s)
+
