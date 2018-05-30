@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import requests
 import re
 import os
@@ -6,8 +7,6 @@ from datetime import datetime
 import itertools
 import ast
 import logging.config
-
-
 
 base_url = "https://api.binance.com"
 klines_query_api = "/api/v1/klines"
@@ -58,10 +57,11 @@ def process_kline_data(contents):
         tmp = tmp.replace(']', '')
         tmp = tmp.replace('\"', '')
         tmp = tmp.split(',')
-        #tmp = [str(datetime.fromtimestamp(int(tmp[0])/1000))] + tmp
+        # tmp = [str(datetime.fromtimestamp(int(tmp[0])/1000))] + tmp
         ret.append(tmp)
 
     return ret
+
 
 """
 [
@@ -89,11 +89,11 @@ def get_klines(symbol, interval, startTime=None, endTime=None):
     params['interval'] = interval
 
     if startTime:
-        params['startTime']=startTime
+        params['startTime'] = startTime
     if endTime:
         params['endTime'] = endTime
 
-    response = requests.get(base_url+klines_query_api, params)
+    response = requests.get(base_url + klines_query_api, params)
 
     if response.status_code == 200:
         return process_kline_data(response.content)
@@ -104,10 +104,8 @@ def get_klines(symbol, interval, startTime=None, endTime=None):
 
 def save_data_to_csv(symbol, interval, data):
     save_dir = os.path.join(default_save_dir, symbol)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
 
-    csv_file_name = symbol+'_'+interval+".csv"
+    csv_file_name = symbol + '_' + interval + ".csv"
     csv_file_path = os.path.join(save_dir, csv_file_name)
 
     with open(csv_file_path, 'a') as f:
@@ -117,8 +115,6 @@ def save_data_to_csv(symbol, interval, data):
 
 def csv_file_write_headers(symbol, interval):
     save_dir = os.path.join(default_save_dir, symbol)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
 
     csv_file_name = symbol + '_' + interval + ".csv"
     csv_file_path = os.path.join(save_dir, csv_file_name)
@@ -126,11 +122,12 @@ def csv_file_write_headers(symbol, interval):
     if os.path.isfile(csv_file_path):
         os.remove(csv_file_path)
     header = [['Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close time',
-              'Quote asset volume', 'Number of trades', 'Taker buy base asset volume',
-              'Taker buy quote asset volume', 'Ignore']]
+               'Quote asset volume', 'Number of trades', 'Taker buy base asset volume',
+               'Taker buy quote asset volume', 'Ignore']]
     with open(csv_file_path, 'a') as f:
         writer = csv.writer(f)
         writer.writerows(header)
+
 
 def interval_to_millisecond(interval):
     micro_second = 1000
@@ -160,24 +157,27 @@ def interval_to_millisecond(interval):
     #     raise Exception(interval + " is not supported in current version")
 
 
-def main(symbol = 'BTCUSDT', interval = '1m'):
-
+def main(symbol='BTCUSDT', interval='1m'):
+    logger.info('symbol: {}, interval: {}'.format(symbol, interval))
     startTime = 1495000000000
     csv_file_write_headers(symbol, interval)
     while True:
-        logger.info("Collecting {} with interval {} on date: {}".format(symbol, interval, str(datetime.fromtimestamp(startTime/1000))))
+        logger.info("Collecting {} with interval {} on date: {}".format(symbol, interval,
+                                                                        str(datetime.fromtimestamp(startTime / 1000))))
         data = get_klines(symbol, interval, startTime)
         startTime = int(data[-1][0]) + interval_to_millisecond(interval)
         save_data_to_csv(symbol, interval, data)
         if len(data) < 1000:
-            logger.info("Collecting LAST {} with interval {} on date: {}".format(symbol, interval, str(datetime.fromtimestamp(startTime/1000))))
+            logger.info("Collecting LAST {} with interval {} on date: {}".format(symbol, interval, str(
+                datetime.fromtimestamp(startTime / 1000))))
+            break
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     logging.config.fileConfig('logging.ini')
     logger = logging.getLogger(__name__)
 
-    symbol = get_symbols()
+    symbol = [s for s in get_symbols() if s.endswith('BTC') or s.endswith('USDT')]
     interval = [KLINE_INTERVAL_1MINUTE,
                 KLINE_INTERVAL_3MINUTE,
                 KLINE_INTERVAL_5MINUTE,
@@ -194,6 +194,13 @@ if __name__=="__main__":
                 KLINE_INTERVAL_1WEEK,
                 KLINE_INTERVAL_1MONTH,
                 ]
-    for s, i in itertools.product(symbol, interval):
-        main(s, i)
 
+    for s in symbol:
+        save_dir = os.path.join(default_save_dir, s)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+    threads = 16
+    with ThreadPoolExecutor(max_workers=threads) as e:
+        for s, i in itertools.product(symbol, interval):
+            e.submit(main, s, i)
